@@ -1,0 +1,13 @@
+[Unit]
+Description=uWSGI instance to serve mpfs pricer rest api
+After=network.target
+
+[Service]
+User=ubuntu
+Group=www-data
+WorkingDirectory=/home/ubuntu/mpfs_pricer
+Environment="PATH=/home/ubuntu/mpfs_pricer/venv/bin"
+ExecStart=/home/ubuntu/mpfs_pricer/venv/bin/uwsgi --ini restapi.ini
+
+[Install]
+WantedBy=multi-user.target

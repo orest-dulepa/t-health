@@ -1,0 +1,73 @@
+version: '3.7'
+
+services:
+    tests:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        init: true
+        depends_on:
+            - celery
+        command: python -m unittest discover -s tests
+        working_dir: /usr/src/app
+        volumes:
+            - ./:/usr/src/app
+    lint:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        init: true
+        command: flake8 . --count --max-complexity=10 --max-line-length=127 --statistics
+        working_dir: /usr/src/app
+        volumes:
+            - ./:/usr/src/app
+    mpfs_restapi:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        init: true
+#        env_file:
+#            - .env
+        environment:
+            - PYTHONPATH=.
+            - FLASK_APP=restapi/app.py
+            - FLASK_ENV=development
+            - REDIS_URL=redis://redis:6379
+        command: flask run --host=0.0.0.0
+        ports:
+            - 5001:5000
+        working_dir: /usr/src/app
+        volumes:
+            - ./:/usr/src/app
+        networks:
+            - mpfs-network
+            - mpfs-network-public
+    redis:
+        image: redis:6.2.4-alpine3.13
+        init: true
+        networks:
+            - mpfs-network
+    celery:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        init: true
+        depends_on:
+            - redis
+#        env_file:
+#            - .env
+        environment:
+            - REDIS_URL=redis://redis:6379
+            - DISPLAY=:0
+        command: celery -A worker.tasks worker -c 1 --loglevel=INFO --uid=nobody --gid=nogroup -Q mpfs
+        volumes:
+            - ./:/usr/src/app
+        networks:
+            - mpfs-network
+
+
+networks:
+    mpfs-network:
+         driver: bridge
+    mpfs-network-public:
+         driver: bridge

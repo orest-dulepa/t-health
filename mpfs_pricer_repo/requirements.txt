@@ -1,0 +1,9 @@
+python-dateutil==2.8.1
+psycopg2==2.8.6
+Flask==2.0.1
+wheel==0.36.2
+celery==5.0.5
+redis==3.5.3
+uWSGI==2.0.19.1
+blinker==1.4
+pybrake==1.0.4

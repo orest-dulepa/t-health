@@ -1,0 +1,96 @@
+name: CI/CD to AWS MWAA
+env:
+  AWS_REGION_NAME: 'us-east-1'
+  AWS_S3_BUCKET: 'airflow-th'
+  AWS_MWAA_NAME: 'mwaa-th'
+  MWAA_GREEN_STATUS: 'AVAILABLE'
+
+on:
+  push:
+    branches: [ master, develop ]
+
+jobs:
+  ci_job:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Git clone our repo
+        uses: actions/checkout@main
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION_NAME }}
+
+      - name: Copy files to s3 bucket
+        run: |
+          aws s3 sync ./dags/ s3://${{ env.AWS_S3_BUCKET }}/dags/ --delete
+          aws s3 cp ./requirements.txt s3://${{ env.AWS_S3_BUCKET }}/requirements.txt
+
+      - name: Finish CI part
+        run: echo "Finish CI pipline"
+
+  cd_job:
+    runs-on: ubuntu-latest
+    needs: [ ci_job ]
+
+    steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION_NAME }}
+
+      - name: Collect vars
+        id: vars
+        run: |
+          echo ::set-output name=s3_req_version::$(aws s3api list-object-versions \
+          --bucket ${{ env.AWS_S3_BUCKET }} \
+          --prefix requirements.txt \
+          | jq -r '.Versions[0] | .VersionId')
+
+          echo ::set-output name=s3_req_etag::$(aws s3api list-object-versions \
+          --bucket ${{ env.AWS_S3_BUCKET }} \
+          --prefix requirements.txt \
+          | jq -r '.Versions[0] | .ETag')
+
+          echo ::set-output name=mwaa_req_version::$(aws mwaa get-environment \
+          --name ${{ env.AWS_MWAA_NAME }} \
+          | jq -r '.Environment | .RequirementsS3ObjectVersion')
+
+          echo ::set-output name=mwaa_req_etag::$(aws s3api head-object \
+          --bucket ${{ env.AWS_S3_BUCKET }} \
+          --key requirements.txt \
+          --version-id $(
+            aws mwaa get-environment \
+            --name ${{ env.AWS_MWAA_NAME }} | jq -r '.Environment | .RequirementsS3ObjectVersion') \
+          | jq -r '.ETag')
+
+          echo ::set-output name=mwaa_status::$(aws mwaa get-environment \
+          --name ${{ env.AWS_MWAA_NAME }} \
+          | jq -r '.Environment | .Status')
+
+      - name: Update MWAA
+        run: |
+          if [[ ${{ steps.vars.outputs.mwaa_status }} = ${{ env.MWAA_GREEN_STATUS }} ]]
+          then
+            echo MWAA is Available
+            echo Compare ETags
+            if [[ ${{ steps.vars.outputs.s3_req_etag }} = ${{ steps.vars.outputs.mwaa_req_etag }} ]]
+            then
+              echo requirements.txt not modified
+            else
+              echo update MWAA
+              aws mwaa update-environment \
+              --requirements-s3-object-version ${{ steps.vars.outputs.s3_req_version }} \
+              --name ${{ env.AWS_MWAA_NAME }} | jq -r '.Arn'
+            fi
+          else
+            echo MWAA us Unavailable status is ${{ steps.vars.outputs.mwaa_status }}
+          fi
+
+      - name: Finish CD part
+        run: echo "Finish CD pipline"

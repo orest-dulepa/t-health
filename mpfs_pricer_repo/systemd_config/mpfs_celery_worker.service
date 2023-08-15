@@ -1,0 +1,19 @@
+[Unit]
+Description=MPFS Pricer Celery Worker
+After=network.target
+
+[Service]
+Type=forking
+User=ubuntu
+WorkingDirectory=/home/ubuntu/mpfs_pricer
+ExecStart=/bin/sh -c '/home/ubuntu/mpfs_pricer/venv/bin/celery multi start mpfs_w1 \
+  -A worker.tasks --pidfile=/home/ubuntu/celery/mpfs-%n.pid \
+  --logfile=/home/ubuntu/celery/mpfs-%n%I.log --loglevel=INFO -c 1 -Q mpfs'
+ExecStop=/bin/sh -c '/home/ubuntu/mpfs_pricer/venv/bin/celery multi stopwait mpfs_w1 \
+  --pidfile=/home/ubuntu/celery/mpfs-%n.pid -Q mpfs'
+ExecReload=/bin/sh -c '/home/ubuntu/mpfs_pricer/venv/bin/celery multi restart mpfs_w1 \
+  -A worker.tasks --pidfile=/home/ubuntu/celery/mpfs-%n.pid \
+  --logfile=/home/ubuntu/celery/mpfs-%n%I.log --loglevel=INFO -c 1 -Q mpfs'
+
+[Install]
+WantedBy=multi-user.target

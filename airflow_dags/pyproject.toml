@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "airflow_dags"
+version = "0.1.0"
+description = "TH Directed acyclic graphs list"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+apache-airflow = {extras = ["amazon", "postgres", "slack", "google"], version = "2.0.2"}
+beautifulsoup4 = "^4.10.0"
+lxml = "^4.6.3"
+ujson = "^4.2.0"
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
